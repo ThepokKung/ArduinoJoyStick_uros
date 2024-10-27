@@ -18,10 +18,22 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
+#include "dma.h"
+#include "usart.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <rcl/rcl.h>
+#include <rcl/error_handling.h>
+#include <rclc/rclc.h>
+#include <rclc/executor.h>
+#include <uxr/client/transport.h>
+#include <rmw_microxrcedds_c/config.h>
+#include <rmw_microros/rmw_microros.h>
 
+#include <std_msgs/msg/int32.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,25 +48,90 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define RCSOFTCHECK(fn) if (fn != RCL_RET_OK) {};
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
 
+/* IDK */
+rcl_init_options_t init_options;
+
+/* Node */
+rclc_support_t support;
+rcl_allocator_t allocator;
+rcl_node_t node;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
+bool cubemx_transport_open(struct uxrCustomTransport * transport);
+bool cubemx_transport_close(struct uxrCustomTransport * transport);
+size_t cubemx_transport_write(struct uxrCustomTransport* transport, const uint8_t * buf, size_t len, uint8_t * err);
+size_t cubemx_transport_read(struct uxrCustomTransport* transport, uint8_t* buf, size_t len, int timeout, uint8_t* err);
 
+void * microros_allocate(size_t size, void * state);
+void microros_deallocate(void * pointer, void * state);
+void * microros_reallocate(void * pointer, size_t size, void * state);
+void * microros_zero_allocate(size_t number_of_elements, size_t size_of_element, void * state);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
 
+  // micro-ROS configuration
+  rmw_uros_set_custom_transport(
+    true,
+    (void *) &hlpuart1,
+    cubemx_transport_open,
+    cubemx_transport_close,
+    cubemx_transport_write,
+    cubemx_transport_read);
+
+  rcl_allocator_t freeRTOS_allocator = rcutils_get_zero_initialized_allocator();
+  freeRTOS_allocator.allocate = microros_allocate;
+  freeRTOS_allocator.deallocate = microros_deallocate;
+  freeRTOS_allocator.reallocate = microros_reallocate;
+  freeRTOS_allocator.zero_allocate =  microros_zero_allocate;
+
+  if (!rcutils_set_default_allocator(&freeRTOS_allocator)) {
+      printf("Error on default allocators (line %d)\n", __LINE__);
+  }
+
+  // micro-ROS app
+  allocator = rcl_get_default_allocator();
+
+  //create init_options
+  init_options = rcl_get_zero_initialized_init_options();
+  RCSOFTCHECK(rcl_init_options_init(&init_options, allocator));
+  RCSOFTCHECK(rcl_init_options_set_domain_id(&init_options, 26)); //Set Domain ID
+
+  rclc_support_init_with_options(
+  	&support,
+	0,
+	NULL,
+	&init_options,
+	&allocator
+  );
+
+  // create node
+  rclc_node_init_default(&node, "cubemx_node", "", &support); //Node name
+
+
+  for(;;)
+  {
+    osDelay(10);
+  }
+  /* USER CODE END 5 */
+}
 /* USER CODE END 0 */
 
 /**
@@ -86,9 +163,22 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
+  MX_LPUART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* Call init function for freertos objects (in cmsis_os2.c) */
+  MX_FREERTOS_Init();
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -147,58 +237,30 @@ void SystemClock_Config(void)
   }
 }
 
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOF_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LPUART1_TX_Pin LPUART1_RX_Pin */
-  GPIO_InitStruct.Pin = LPUART1_TX_Pin|LPUART1_RX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF12_LPUART1;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
-}
-
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
