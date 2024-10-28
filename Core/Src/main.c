@@ -34,6 +34,7 @@
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
 
+
 /* Includes MSG Type */
 #include <geometry_msgs/msg/twist.h>
 
@@ -238,10 +239,6 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
-	/* Start Analog Read */
-	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
-	HAL_ADC_Start_DMA(&hadc1, ADC_RawRead, 200);
-	/* End Analog Read */
 
   /* USER CODE END 2 */
 
