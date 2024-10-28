@@ -33,10 +33,10 @@
 #include <uxr/client/transport.h>
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
-
-
+#include <math.h>
 /* Includes MSG Type */
 #include <geometry_msgs/msg/twist.h>
+//#include
 
 /* USER CODE END Includes */
 
@@ -68,6 +68,11 @@ rcl_allocator_t allocator;
 rcl_node_t node;
 rclc_executor_t executor;
 
+/* Service Client*/
+rcl_client_t savepath_client;
+rcl_client_t ref_client;
+rcl_client_t mode_client;
+
 /* pub */
 rcl_publisher_t cmdvel_publisher;
 
@@ -85,6 +90,15 @@ uint16_t y_axis = 0;
 uint16_t center_x = 0;
 uint16_t center_y = 0;
 
+// Joy Z
+
+float linearZ_velocity = 0.0f;
+uint8_t z_step = 0.1f;
+
+// Stare Button
+GPIO_PinState aButtonState = GPIO_PIN_RESET;
+GPIO_PinState cButtonState = GPIO_PIN_RESET;
+
 // Prev Button
 GPIO_PinState aPrevButton = GPIO_PIN_RESET;
 GPIO_PinState bPrevButton = GPIO_PIN_RESET;
@@ -92,6 +106,9 @@ GPIO_PinState cPrevButton = GPIO_PIN_RESET;
 GPIO_PinState dPrevButton = GPIO_PIN_RESET;
 GPIO_PinState kPrevButton = GPIO_PIN_RESET;
 /* End Joy Parameter */
+
+//DEBUG
+uint16_t DEBUG_Count = 0;
 
 /* USER CODE END PV */
 
@@ -115,8 +132,12 @@ void* microros_zero_allocate(size_t number_of_elements, size_t size_of_element, 
 
 /* Start my Function*/
 void ReadADC_AVERAGE();
-void CalibrateJoystickCenter();
 void SentCMDVEL();
+void CheckButtonK();
+// Client Callback
+void savepath_client_callback(const void * response_msg);
+void ref_client_callback(const void * response_msg);
+void mode_client_callback(const void * response_msg);
 /* End my Function*/
 
 /* USER CODE END PFP */
@@ -166,9 +187,6 @@ void StartDefaultTask(void *argument) {
 			&allocator
 	);
 
-	//Start up code for check enter
-	CalibrateJoystickCenter();
-
 	// create node
 	rclc_node_init_default(
 			&node,
@@ -177,13 +195,37 @@ void StartDefaultTask(void *argument) {
 			&support
 	); //Node name
 
-	// create cmd_ve; publisher
+	// create cmd_vel publisher
 	rclc_publisher_init_default(
 			&cmdvel_publisher,
 			&node,
 			ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
 			"/cmd_vel"
 	);
+
+	// create save_path client
+//	rclc_client_init_default(
+//			&savepath_client,
+//			&node,
+//			type_support, //Wait to change
+//			"/SavePath"
+//	);
+
+	// create Ref client
+//	rclc_client_init_default(
+//			&ref_client,
+//			&node,
+//			type_support, //Wait to change
+//			"/Ref"
+//	);
+
+	// create Mode client
+//	rclc_client_init_default(
+//			&ref_client,
+//			&node,
+//			type_support, //Wait to change
+//			"/Mode"
+//	);
 
 	// create Timer
 	rclc_timer_init_default(
@@ -239,6 +281,10 @@ int main(void)
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Start Analog Read */
+  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+  HAL_ADC_Start_DMA(&hadc1, ADC_RawRead, 200);
+  /* End Analog Read */
 
   /* USER CODE END 2 */
 
@@ -325,38 +371,87 @@ void ReadADC_AVERAGE() {
 	y_axis = (temp_2 / 100);
 }
 
-void CalibrateJoystickCenter() {
-	uint32_t temp_1 = 0;
-	uint32_t temp_2 = 0;
-	for (int i = 0; i < 200; i++) {
-		if (i % 2 == 0) {
-			temp_1 += ADC_RawRead[i];
-		} else if (i % 2 == 1) {
-			temp_2 += ADC_RawRead[i];
-		}
-	}
-	center_x = (temp_1 / 100);
-	center_y = (temp_2 / 100);
-}
 
 void SentCMDVEL(){
-	float linear_velocity = (y_axis - 2048) / 2048.0f;  // Normalize -1.0 to 1.0
-	float angular_velocity = (x_axis - 2048) / 2048.0f; // Normalize -1.0 to 1.0
+	/* Call Velocity */
+	float linearX_velocity = (y_axis - 2048) / 2048.0f;  // Normalize -1.0 to 1.0
+	float linearY_velocity = (x_axis - 2048) / 2048.0f; // Normalize -1.0 to 1.0
 
-	if (fabs(linear_velocity) < 0.025f) {
-		linear_velocity = 0.0f;
+	/* Check DEADZONE*/
+	if (fabs(linearX_velocity) < 0.025f) {
+		linearX_velocity = 0.0f;
 	}
 
-	if (fabs(angular_velocity) < 0.015f) {
-		angular_velocity = 0.0f;
+	if (fabs(linearY_velocity) < 0.015f) {
+		linearY_velocity = 0.0f;
 	}
 
-	twist_msg.linear.x = linear_velocity;  // Adjust MAX_LINEAR_SPEED as needed
-	twist_msg.angular.z = angular_velocity;  // Adjust MAX_ANGULAR_SPEED as needed
+	/* Z button */
+	aButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_5);
+	cButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_4);
+
+	/* readbutton state */
+	if (aButtonState == GPIO_PIN_RESET && aPrevButton == GPIO_PIN_SET) {
+		linearZ_velocity += 0.1;
+	    DEBUG_Count += 1;
+	    if (linearZ_velocity > 1.0f) linearZ_velocity = 1.0;
+	}
+	if (cButtonState == GPIO_PIN_RESET && cPrevButton == GPIO_PIN_SET) {
+		linearZ_velocity -= 0.1;
+	    DEBUG_Count += 1;
+	    if (linearZ_velocity < -1.0f) linearZ_velocity = -1.0;
+	}
+
+	if (fabs(linearZ_velocity) < 0.001f) {
+		linearZ_velocity = 0.0f;
+	}
+
+	HAL_Delay(10);
+
+	/* update button state */
+	aPrevButton = aButtonState;
+	cPrevButton = cButtonState;
+
+	twist_msg.linear.x = linearX_velocity;
+	twist_msg.linear.y = linearY_velocity;
+	twist_msg.linear.z = linearZ_velocity;
 
 	RCSOFTCHECK(rcl_publish(&cmdvel_publisher, &twist_msg, NULL));
-
 }
+
+//void CheckButtonK() {
+//    GPIO_PinState kButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
+//
+//    if (kButtonState == GPIO_PIN_SET && kPrevButton == GPIO_PIN_RESET) {
+//
+//        RCSOFTCHECK(rcl_send_request(&savepath_client, &savepath_request, NULL));
+//    }
+//
+//    kPrevButton = kButtonState;
+//}
+//
+//void CheckButtonB() {
+//    GPIO_PinState bButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15);
+//
+//    if (bButtonState == GPIO_PIN_SET && bPrevButton == GPIO_PIN_RESET) {
+//
+//        RCSOFTCHECK(rcl_send_request(&mode_client, &savepath_request, NULL));
+//    }
+//
+//    bPrevButton = bButtonState;
+//}
+//
+//void CheckButtonD() {
+//    GPIO_PinState dButtonState = HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_1);
+//
+//    if (dButtonState == GPIO_PIN_SET && dPrevButton == GPIO_PIN_RESET) {
+//
+//        RCSOFTCHECK(rcl_send_request(&ref_client, &savepath_request, NULL));
+//    }
+//
+//    dPrevButton = dButtonState;
+//}
+
 
 /* USER CODE END 4 */
 
