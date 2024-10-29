@@ -21,6 +21,7 @@
 #include "cmsis_os.h"
 #include "adc.h"
 #include "dma.h"
+#include "iwdg.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -170,6 +171,8 @@ void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
 		CheckButtonK();
 		CheckButtonB();
 		CheckButtonD();
+
+		HAL_IWDG_Refresh(&hiwdg);
 	}
 }
 
@@ -196,7 +199,7 @@ void StartDefaultTask(void *argument) {
 	//create init_options
 	init_options = rcl_get_zero_initialized_init_options();
 	RCSOFTCHECK(rcl_init_options_init(&init_options, allocator));
-	RCSOFTCHECK(rcl_init_options_set_domain_id(&init_options, 50)); //Set Domain ID
+	RCSOFTCHECK(rcl_init_options_set_domain_id(&init_options, 26)); //Set Domain ID
 
 	rclc_support_init_with_options(
 			&support, 0,
@@ -298,6 +301,7 @@ int main(void)
   MX_DMA_Init();
   MX_LPUART1_UART_Init();
   MX_ADC1_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
   //    	rcl_send_request(&savepath_client, &savepath_request, &sequence_number);
 
@@ -345,9 +349,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV4;

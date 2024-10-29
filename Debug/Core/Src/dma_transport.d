@@ -32,6 +32,7 @@ Core/Src/dma_transport.o: ../Core/Src/dma_transport.c \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash_ex.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash_ramfunc.h \
+ ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_iwdg.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_pwr.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_pwr_ex.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_tim.h \
@@ -83,6 +84,7 @@ Core/Src/dma_transport.o: ../Core/Src/dma_transport.c \
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash_ex.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_flash_ramfunc.h:
+../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_iwdg.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_pwr.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_pwr_ex.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_tim.h:
