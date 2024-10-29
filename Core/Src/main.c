@@ -36,6 +36,7 @@
 #include <math.h>
 /* Includes MSG Type */
 #include <geometry_msgs/msg/twist.h>
+#include <rrr_robot_interfaces/srv/rrr_target_path.h>
 //#include
 
 /* USER CODE END Includes */
@@ -78,6 +79,8 @@ rcl_publisher_t cmdvel_publisher;
 
 /* Massage */
 geometry_msgs__msg__Twist twist_msg;
+rrr_robot_interfaces__srv__RRRTargetPath_Request savepath_request;
+rrr_robot_interfaces__srv__RRRTargetPath_Response savepath_response;
 
 /* Timer */
 rcl_timer_t timer;
@@ -98,6 +101,7 @@ uint8_t z_step = 0.1f;
 // Stare Button
 GPIO_PinState aButtonState = GPIO_PIN_RESET;
 GPIO_PinState cButtonState = GPIO_PIN_RESET;
+GPIO_PinState kButtonState = GPIO_PIN_RESET;
 
 // Prev Button
 GPIO_PinState aPrevButton = GPIO_PIN_RESET;
@@ -135,7 +139,7 @@ void ReadADC_AVERAGE();
 void SentCMDVEL();
 void CheckButtonK();
 // Client Callback
-void savepath_client_callback(const void * response_msg);
+//void SavePath_client_callback(const rrr_robot_interfaces__srv__RRRTargetPath_Response * response_msg);
 void ref_client_callback(const void * response_msg);
 void mode_client_callback(const void * response_msg);
 /* End my Function*/
@@ -150,8 +154,10 @@ void mode_client_callback(const void * response_msg);
 void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
 	if (timer != NULL) {
 		/* Code here*/
-		ReadADC_AVERAGE();
+		ReadADC_AVERAGE();//	rclc_executor_add_client(&executor, &savepath_client, &savepath_response, SavePath_client_callback);
+
 		SentCMDVEL();
+		CheckButtonK();
 	}
 }
 
@@ -204,12 +210,12 @@ void StartDefaultTask(void *argument) {
 	);
 
 	// create save_path client
-//	rclc_client_init_default(
-//			&savepath_client,
-//			&node,
-//			type_support, //Wait to change
-//			"/SavePath"
-//	);
+	rclc_client_init_default(
+	    &savepath_client,
+	    &node,
+	    ROSIDL_GET_SRV_TYPE_SUPPORT(rrr_robot_interfaces, srv, RRRTargetPath),
+	    "/SavePath"
+	);
 
 	// create Ref client
 //	rclc_client_init_default(
@@ -238,6 +244,7 @@ void StartDefaultTask(void *argument) {
 	executor = rclc_executor_get_zero_initialized_executor();
 	rclc_executor_init(&executor, &support.context, 1, &allocator);
 	rclc_executor_add_timer(&executor, &timer);
+//	rclc_executor_add_client(&executor, &savepath_client, &savepath_response, SavePath_client_callback);
 	rclc_executor_spin(&executor); //ต้องเรียกก่อนถึงจะเริ่มทำงาน
 
 	for (;;) {
@@ -280,6 +287,7 @@ int main(void)
   MX_LPUART1_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
+  //    	rcl_send_request(&savepath_client, &savepath_request, &sequence_number);
 
   /* Start Analog Read */
   HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
@@ -393,12 +401,16 @@ void SentCMDVEL(){
 	/* readbutton state */
 	if (aButtonState == GPIO_PIN_RESET && aPrevButton == GPIO_PIN_SET) {
 		linearZ_velocity += 0.1;
-	    DEBUG_Count += 1;
+
+		HAL_Delay(10);
+
+		/* update button state */
+		aPrevButton = aButtonState;
+		cPrevButton = cButtonState;
 	    if (linearZ_velocity > 1.0f) linearZ_velocity = 1.0;
 	}
 	if (cButtonState == GPIO_PIN_RESET && cPrevButton == GPIO_PIN_SET) {
 		linearZ_velocity -= 0.1;
-	    DEBUG_Count += 1;
 	    if (linearZ_velocity < -1.0f) linearZ_velocity = -1.0;
 	}
 
@@ -419,16 +431,24 @@ void SentCMDVEL(){
 	RCSOFTCHECK(rcl_publish(&cmdvel_publisher, &twist_msg, NULL));
 }
 
-//void CheckButtonK() {
-//    GPIO_PinState kButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_2);
-//
-//    if (kButtonState == GPIO_PIN_SET && kPrevButton == GPIO_PIN_RESET) {
-//
-//        RCSOFTCHECK(rcl_send_request(&savepath_client, &savepath_request, NULL));
-//    }
-//
-//    kPrevButton = kButtonState;
-//}
+void CheckButtonK() {
+    kButtonState = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_5);
+
+    if (kButtonState == GPIO_PIN_RESET && kPrevButton == GPIO_PIN_SET) {
+
+    	rrr_robot_interfaces__srv__RRRTargetPath_Request__init(&savepath_request);
+
+    	savepath_request.save_path = true;
+    	savepath_request.call_path = false;
+
+    	int64_t sequence_number;
+    	RCSOFTCHECK(rcl_send_request(&savepath_client, &savepath_request, &sequence_number));
+
+    }
+    HAL_Delay(10);
+
+    kPrevButton = kButtonState;
+}
 //
 //void CheckButtonB() {
 //    GPIO_PinState bButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15);
@@ -453,6 +473,7 @@ void SentCMDVEL(){
 //}
 
 
+//    	rcl_send_request(&savepath_client, &savepath_request, &sequence_number);
 /* USER CODE END 4 */
 
 /**
