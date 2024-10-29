@@ -199,7 +199,12 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rosidl_runtime_c/primitives_sequence.h \
  ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_target_path__functions.h \
  ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/msg/rosidl_generator_c__visibility_control.h \
- ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_target_path__type_support.h
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_target_path__type_support.h \
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/rrr_mode.h \
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__struct.h \
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__functions.h \
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__type_support.h \
+ ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rosidl_runtime_c/string_functions.h
 ../Core/Inc/main.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
@@ -405,3 +410,8 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_target_path__functions.h:
 ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/msg/rosidl_generator_c__visibility_control.h:
 ../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_target_path__type_support.h:
+../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/rrr_mode.h:
+../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__struct.h:
+../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__functions.h:
+../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rrr_robot_interfaces/srv/detail/rrr_mode__type_support.h:
+../micro_ros_stm32cubemx_utils/microros_static_library_ide/libmicroros/include/rosidl_runtime_c/string_functions.h:

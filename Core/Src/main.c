@@ -34,9 +34,12 @@
 #include <rmw_microxrcedds_c/config.h>
 #include <rmw_microros/rmw_microros.h>
 #include <math.h>
+#include <string.h>
 /* Includes MSG Type */
 #include <geometry_msgs/msg/twist.h>
 #include <rrr_robot_interfaces/srv/rrr_target_path.h>
+#include <rrr_robot_interfaces/srv/rrr_mode.h>
+#include "rosidl_runtime_c/string_functions.h"
 //#include
 
 /* USER CODE END Includes */
@@ -80,7 +83,8 @@ rcl_publisher_t cmdvel_publisher;
 /* Massage */
 geometry_msgs__msg__Twist twist_msg;
 rrr_robot_interfaces__srv__RRRTargetPath_Request savepath_request;
-rrr_robot_interfaces__srv__RRRTargetPath_Response savepath_response;
+rrr_robot_interfaces__srv__RRRMode_Request mode_request;
+rrr_robot_interfaces__srv__RRRMode_Request ref_request;
 
 /* Timer */
 rcl_timer_t timer;
@@ -94,13 +98,18 @@ uint16_t center_x = 0;
 uint16_t center_y = 0;
 
 // Joy Z
-
 float linearZ_velocity = 0.0f;
 uint8_t z_step = 0.1f;
 
+//mode
+uint16_t teleop_num = 0;
+uint16_t ref_num = 0;
+
 // Stare Button
 GPIO_PinState aButtonState = GPIO_PIN_RESET;
+GPIO_PinState bButtonState = GPIO_PIN_RESET;
 GPIO_PinState cButtonState = GPIO_PIN_RESET;
+GPIO_PinState dButtonState = GPIO_PIN_RESET;
 GPIO_PinState kButtonState = GPIO_PIN_RESET;
 
 // Prev Button
@@ -138,6 +147,8 @@ void* microros_zero_allocate(size_t number_of_elements, size_t size_of_element, 
 void ReadADC_AVERAGE();
 void SentCMDVEL();
 void CheckButtonK();
+void CheckButtonB();
+void CheckButtonD();
 // Client Callback
 //void SavePath_client_callback(const rrr_robot_interfaces__srv__RRRTargetPath_Response * response_msg);
 void ref_client_callback(const void * response_msg);
@@ -154,10 +165,11 @@ void mode_client_callback(const void * response_msg);
 void timer_callback(rcl_timer_t *timer, int64_t last_call_time) {
 	if (timer != NULL) {
 		/* Code here*/
-		ReadADC_AVERAGE();//	rclc_executor_add_client(&executor, &savepath_client, &savepath_response, SavePath_client_callback);
-
+		ReadADC_AVERAGE();
 		SentCMDVEL();
 		CheckButtonK();
+		CheckButtonB();
+		CheckButtonD();
 	}
 }
 
@@ -184,7 +196,7 @@ void StartDefaultTask(void *argument) {
 	//create init_options
 	init_options = rcl_get_zero_initialized_init_options();
 	RCSOFTCHECK(rcl_init_options_init(&init_options, allocator));
-	RCSOFTCHECK(rcl_init_options_set_domain_id(&init_options, 26)); //Set Domain ID
+	RCSOFTCHECK(rcl_init_options_set_domain_id(&init_options, 50)); //Set Domain ID
 
 	rclc_support_init_with_options(
 			&support, 0,
@@ -211,27 +223,27 @@ void StartDefaultTask(void *argument) {
 
 	// create save_path client
 	rclc_client_init_default(
-	    &savepath_client,
-	    &node,
-	    ROSIDL_GET_SRV_TYPE_SUPPORT(rrr_robot_interfaces, srv, RRRTargetPath),
-	    "/SavePath"
+			&savepath_client,
+			&node,
+			ROSIDL_GET_SRV_TYPE_SUPPORT(rrr_robot_interfaces, srv, RRRTargetPath),
+			"/SavePath"
 	);
 
 	// create Ref client
-//	rclc_client_init_default(
-//			&ref_client,
-//			&node,
-//			type_support, //Wait to change
-//			"/Ref"
-//	);
+	rclc_client_init_default(
+			&ref_client,
+			&node,
+			ROSIDL_GET_SRV_TYPE_SUPPORT(rrr_robot_interfaces, srv, RRRMode), //Wait to change
+			"/Ref"
+	);
 
 	// create Mode client
-//	rclc_client_init_default(
-//			&ref_client,
-//			&node,
-//			type_support, //Wait to change
-//			"/Mode"
-//	);
+	rclc_client_init_default(
+			&mode_client,
+			&node,
+			ROSIDL_GET_SRV_TYPE_SUPPORT(rrr_robot_interfaces, srv, RRRMode), //Wait to change
+			"/Mode"
+	);
 
 	// create Timer
 	rclc_timer_init_default(
@@ -449,31 +461,63 @@ void CheckButtonK() {
 
     kPrevButton = kButtonState;
 }
-//
-//void CheckButtonB() {
-//    GPIO_PinState bButtonState = HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_15);
-//
-//    if (bButtonState == GPIO_PIN_SET && bPrevButton == GPIO_PIN_RESET) {
-//
-//        RCSOFTCHECK(rcl_send_request(&mode_client, &savepath_request, NULL));
-//    }
-//
-//    bPrevButton = bButtonState;
-//}
-//
-//void CheckButtonD() {
-//    GPIO_PinState dButtonState = HAL_GPIO_ReadPin(GPIOF, GPIO_PIN_1);
-//
-//    if (dButtonState == GPIO_PIN_SET && dPrevButton == GPIO_PIN_RESET) {
-//
-//        RCSOFTCHECK(rcl_send_request(&ref_client, &savepath_request, NULL));
-//    }
-//
-//    dPrevButton = dButtonState;
-//}
+
+void CheckButtonB() {
+    bButtonState = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_10);
+
+    if (bButtonState == GPIO_PIN_RESET && bPrevButton == GPIO_PIN_SET) {
+
+    	rrr_robot_interfaces__srv__RRRMode_Request__init(&mode_request);
+
+    	teleop_num = teleop_num % 2;
+    	teleop_num = teleop_num + 1;
+
+    	if (teleop_num == 1){
+    		rosidl_runtime_c__String__assign(&mode_request.mode_call, "Teleop");
+    		rosidl_runtime_c__String__assign(&mode_request.ref, "");
+    	}
+		else if (teleop_num == 2){
+			rosidl_runtime_c__String__assign(&mode_request.mode_call, "Auto");
+			rosidl_runtime_c__String__assign(&mode_request.ref, "");
+		};
+
+    	int64_t sequence_number;
+        RCSOFTCHECK(rcl_send_request(&mode_client, &mode_request, &sequence_number));
+    }
+    HAL_Delay(10);
+
+    bPrevButton = bButtonState;
+}
 
 
-//    	rcl_send_request(&savepath_client, &savepath_request, &sequence_number);
+void CheckButtonD() {
+    dButtonState = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_4);
+
+    if (dButtonState == GPIO_PIN_RESET && dPrevButton == GPIO_PIN_SET) {
+
+    	rrr_robot_interfaces__srv__RRRMode_Request__init(&ref_request);
+
+
+    	ref_num = ref_num % 2;
+    	ref_num = ref_num + 1;
+
+    	if (ref_num == 1){
+    		rosidl_runtime_c__String__assign(&ref_request.mode_call, "Teleop");
+    		rosidl_runtime_c__String__assign(&ref_request.ref, "base");
+    	}
+		else if (ref_num == 2){
+			rosidl_runtime_c__String__assign(&ref_request.mode_call, "Teleop");
+			rosidl_runtime_c__String__assign(&ref_request.ref, "hand");
+		};
+
+    	int64_t sequence_number;
+    	RCSOFTCHECK(rcl_send_request(&ref_client, &ref_request, &sequence_number));
+    }
+    HAL_Delay(10);
+
+    dPrevButton = dButtonState;
+}
+
 /* USER CODE END 4 */
 
 /**
